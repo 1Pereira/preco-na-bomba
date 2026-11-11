@@ -1,0 +1,878 @@
+{
+  "datasets": [
+    {
+      "name": "ds_precos",
+      "displayName": "Preços",
+      "queryLines": [
+        "SELECT data, produto, regiao, uf, municipio, bandeira, cnpj, valor_venda, valor_venda_real\n",
+        "FROM preco_na_bomba.gold.vw_precos"
+      ]
+    },
+    {
+      "name": "ds_bandeiras",
+      "displayName": "Preços das maiores bandeiras",
+      "queryLines": [
+        "WITH maiores AS (\n",
+        "  SELECT bandeira FROM preco_na_bomba.gold.dim_posto WHERE ativo\n",
+        "  GROUP BY bandeira ORDER BY COUNT(*) DESC LIMIT 8\n",
+        ")\n",
+        "SELECT v.data, v.produto, v.uf,\n",
+        "       CASE WHEN v.bandeira = 'BRANCA' THEN 'BRANCA (SEM BANDEIRA)' ELSE v.bandeira END AS bandeira,\n",
+        "       v.valor_venda\n",
+        "FROM preco_na_bomba.gold.vw_precos v\n",
+        "JOIN maiores m ON v.bandeira = m.bandeira"
+      ]
+    },
+    {
+      "name": "ds_trocas",
+      "displayName": "Trocas de bandeira (SCD Tipo 2)",
+      "queryLines": [
+        "WITH versoes AS (\n",
+        "  SELECT cnpj, revenda, uf, municipio, bandeira, data_inicio,\n",
+        "         LAG(bandeira) OVER (PARTITION BY cnpj ORDER BY data_inicio) AS bandeira_anterior\n",
+        "  FROM preco_na_bomba.gold.dim_posto\n",
+        ")\n",
+        "SELECT data_inicio AS data_troca, uf, municipio, revenda, cnpj, bandeira_anterior, bandeira AS bandeira_nova\n",
+        "FROM versoes\n",
+        "WHERE bandeira_anterior IS NOT NULL AND bandeira_anterior <> bandeira\n",
+        "ORDER BY data_troca DESC"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "e0bb2530",
+      "displayName": "Visão geral",
+      "layout": [
+        {
+          "widget": {
+            "name": "titulo",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Preço na Bomba\n",
+                "Preços de combustíveis por posto publicados pela ANP, de jan/2024 a dez/2025. O preço real está corrigido pelo IPCA, a valores do mês mais recente da série."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "f_produto",
+            "queries": [
+              {
+                "name": "dashboards/01f1de0fb04b1b75872e6c6a009239dd/datasets/01f1de10865b16d097090460be008096_produto",
+                "query": {
+                  "datasetName": "ds_precos",
+                  "fields": [
+                    {
+                      "name": "produto",
+                      "expression": "`produto`"
+                    },
+                    {
+                      "name": "produto_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f1de0fb04b1b75872e6c6a009239dd/datasets/01f1de10865b16d599f2910eb16edd3f_produto",
+                "query": {
+                  "datasetName": "ds_bandeiras",
+                  "fields": [
+                    {
+                      "name": "produto",
+                      "expression": "`produto`"
+                    },
+                    {
+                      "name": "produto_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "selection": {
+                "defaultSelection": {
+                  "values": {
+                    "dataType": "STRING",
+                    "values": [
+                      {
+                        "value": "Gasolina"
+                      }
+                    ]
+                  }
+                }
+              },
+              "disallowAll": true,
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Produto",
+                  "fields": []
+                }
+              },
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "produto",
+                    "queryName": "dashboards/01f1de0fb04b1b75872e6c6a009239dd/datasets/01f1de10865b16d097090460be008096_produto"
+                  },
+                  {
+                    "fieldName": "produto",
+                    "queryName": "dashboards/01f1de0fb04b1b75872e6c6a009239dd/datasets/01f1de10865b16d599f2910eb16edd3f_produto"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 2,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "f_periodo",
+            "queries": [
+              {
+                "name": "ds_precos_data",
+                "query": {
+                  "datasetName": "ds_precos",
+                  "fields": [
+                    {
+                      "name": "data",
+                      "expression": "`data`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_bandeiras_data",
+                "query": {
+                  "datasetName": "ds_bandeiras",
+                  "fields": [
+                    {
+                      "name": "data",
+                      "expression": "`data`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-date-range-picker",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "data",
+                    "displayName": "Período",
+                    "queryName": "ds_precos_data"
+                  },
+                  {
+                    "fieldName": "data",
+                    "displayName": "Período",
+                    "queryName": "ds_bandeiras_data"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Período"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 2,
+            "width": 2,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "f_uf",
+            "queries": [
+              {
+                "name": "ds_precos_uf",
+                "query": {
+                  "datasetName": "ds_precos",
+                  "fields": [
+                    {
+                      "name": "uf",
+                      "expression": "`uf`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_bandeiras_uf",
+                "query": {
+                  "datasetName": "ds_bandeiras",
+                  "fields": [
+                    {
+                      "name": "uf",
+                      "expression": "`uf`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_trocas_uf",
+                "query": {
+                  "datasetName": "ds_trocas",
+                  "fields": [
+                    {
+                      "name": "uf",
+                      "expression": "`uf`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "uf",
+                    "displayName": "UF",
+                    "queryName": "ds_precos_uf"
+                  },
+                  {
+                    "fieldName": "uf",
+                    "displayName": "UF",
+                    "queryName": "ds_bandeiras_uf"
+                  },
+                  {
+                    "fieldName": "uf",
+                    "displayName": "UF",
+                    "queryName": "ds_trocas_uf"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "UF"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 2,
+            "width": 2,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "k_nominal",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_precos",
+                  "fields": [
+                    {
+                      "name": "avg(valor_venda)",
+                      "expression": "AVG(`valor_venda`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "avg(valor_venda)",
+                  "displayName": "Preço médio",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "BRL",
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 2
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Preço médio"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "k_real",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_precos",
+                  "fields": [
+                    {
+                      "name": "avg(valor_venda_real)",
+                      "expression": "AVG(`valor_venda_real`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "avg(valor_venda_real)",
+                  "displayName": "Preço médio real (corrigido pelo IPCA)",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "BRL",
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 2
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Preço médio real (corrigido pelo IPCA)"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 3,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "k_postos",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_precos",
+                  "fields": [
+                    {
+                      "name": "countdistinct(cnpj)",
+                      "expression": "COUNT(DISTINCT `cnpj`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "countdistinct(cnpj)",
+                  "displayName": "Postos com coleta",
+                  "format": {
+                    "type": "number-plain",
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Postos com coleta"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 3,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "g_evolucao",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_precos",
+                  "fields": [
+                    {
+                      "name": "monthly(data)",
+                      "expression": "DATE_TRUNC(\"MONTH\", `data`)"
+                    },
+                    {
+                      "name": "avg(valor_venda)",
+                      "expression": "AVG(`valor_venda`)"
+                    },
+                    {
+                      "name": "avg(valor_venda_real)",
+                      "expression": "AVG(`valor_venda_real`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "monthly(data)",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Mês"
+                },
+                "y": {
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "BRL",
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 2
+                    }
+                  },
+                  "fields": [
+                    {
+                      "fieldName": "avg(valor_venda)",
+                      "displayName": "Nominal"
+                    },
+                    {
+                      "fieldName": "avg(valor_venda_real)",
+                      "displayName": "Real (IPCA)"
+                    }
+                  ],
+                  "axis": {
+                    "title": "Preço médio"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Preço médio mensal: nominal e real",
+                "showDescription": true,
+                "description": "A diferença entre as linhas é a inflação do período"
+              },
+              "mark": {
+                "colors": [
+                  "#8C8C96",
+                  "#2836F5"
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "g_uf",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_precos",
+                  "fields": [
+                    {
+                      "name": "uf",
+                      "expression": "`uf`"
+                    },
+                    {
+                      "name": "avg(valor_venda)",
+                      "expression": "AVG(`valor_venda`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "avg(valor_venda)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Preço médio",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "BRL",
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 2
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "uf",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "x-reversed"
+                    }
+                  },
+                  "displayName": "UF"
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Preço médio por UF"
+              },
+              "mark": {
+                "colors": [
+                  "#2836F5"
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 11,
+            "width": 3,
+            "height": 10
+          }
+        },
+        {
+          "widget": {
+            "name": "g_bandeira",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_bandeiras",
+                  "fields": [
+                    {
+                      "name": "bandeira",
+                      "expression": "`bandeira`"
+                    },
+                    {
+                      "name": "avg(valor_venda)",
+                      "expression": "AVG(`valor_venda`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "avg(valor_venda)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Preço médio",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "BRL",
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 2
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "bandeira",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "x-reversed"
+                    }
+                  },
+                  "displayName": "Bandeira"
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Preço médio nas 8 maiores bandeiras",
+                "showDescription": true,
+                "description": "Bandeiras com mais postos ativos"
+              },
+              "mark": {
+                "colors": [
+                  "#2836F5"
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 11,
+            "width": 3,
+            "height": 10
+          }
+        },
+        {
+          "widget": {
+            "name": "titulo_scd",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Trocas de bandeira\n",
+                "Cada troca abre uma nova versão do posto na dimensão (SCD Tipo 2), e os preços anteriores continuam ligados à bandeira antiga."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 21,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "k_trocas",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_trocas",
+                  "fields": [
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "count(*)",
+                  "displayName": "Trocas de bandeira",
+                  "format": {
+                    "type": "number-plain",
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Trocas de bandeira",
+                "showDescription": true,
+                "description": "Todos os produtos, jan/2024 a dez/2025"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 23,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "k_postos_troca",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_trocas",
+                  "fields": [
+                    {
+                      "name": "countdistinct(cnpj)",
+                      "expression": "COUNT(DISTINCT `cnpj`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "countdistinct(cnpj)",
+                  "displayName": "Postos que trocaram",
+                  "format": {
+                    "type": "number-plain",
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Postos que trocaram de bandeira",
+                "showDescription": true,
+                "description": "Alguns postos trocaram mais de uma vez"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 23,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "t_trocas",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_trocas",
+                  "fields": [
+                    {
+                      "name": "data_troca",
+                      "expression": "`data_troca`"
+                    },
+                    {
+                      "name": "uf",
+                      "expression": "`uf`"
+                    },
+                    {
+                      "name": "municipio",
+                      "expression": "`municipio`"
+                    },
+                    {
+                      "name": "revenda",
+                      "expression": "`revenda`"
+                    },
+                    {
+                      "name": "bandeira_anterior",
+                      "expression": "`bandeira_anterior`"
+                    },
+                    {
+                      "name": "bandeira_nova",
+                      "expression": "`bandeira_nova`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "data_troca",
+                    "displayName": "Data da troca"
+                  },
+                  {
+                    "fieldName": "uf",
+                    "displayName": "UF"
+                  },
+                  {
+                    "fieldName": "municipio",
+                    "displayName": "Município"
+                  },
+                  {
+                    "fieldName": "revenda",
+                    "displayName": "Posto"
+                  },
+                  {
+                    "fieldName": "bandeira_anterior",
+                    "displayName": "Bandeira anterior"
+                  },
+                  {
+                    "fieldName": "bandeira_nova",
+                    "displayName": "Bandeira nova"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Trocas registradas"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 25,
+            "width": 6,
+            "height": 8
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  }
+}
